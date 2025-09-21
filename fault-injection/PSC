@@ -1,0 +1,340 @@
+Sure! Let's go **line-by-line** and **explain every part** of this Python script for **complete beginners**, including all the little details, especially about **lists**, **dictionaries**, and other core concepts.
+
+---
+
+### 🔹 Script Summary
+
+This is a **Python script** for **injecting faults** (bugs/errors) into a software system (specifically PetClinic) to test how it behaves under failure. This is common in **chaos engineering** — testing system robustness.
+
+---
+
+## 🟨 1. Script Start and Metadata
+
+```python
+#!/usr/bin/env python3
+"""
+PetClinic Fault Injection Script
+
+This script injects various types of faults into the system to test monitoring and alerting capabilities.
+"""
+```
+
+* `#!/usr/bin/env python3`: This is a **shebang** line that tells the operating system to use Python 3 to run this script.
+* The `""" ... """` block is a **docstring** — a multiline string that serves as a comment to describe the script.
+
+---
+
+## 🟨 2. Importing Modules (Libraries)
+
+```python
+import requests
+import json
+import time
+import argparse
+import sys
+from typing import Dict, List
+import subprocess
+import os
+```
+
+These are all **Python modules**:
+
+| Module       | What it does                                              |
+| ------------ | --------------------------------------------------------- |
+| `requests`   | Makes HTTP requests (like visiting websites or APIs).     |
+| `json`       | Read/write data in JSON format (common config format).    |
+| `time`       | Works with time: sleeping, current time, etc.             |
+| `argparse`   | Handles command-line arguments.                           |
+| `sys`        | Interacts with the system (e.g., exit the program).       |
+| `typing`     | Used to annotate data types (`Dict`, `List`)              |
+| `subprocess` | Runs system commands.                                     |
+| `os`         | Interacts with the operating system (files, paths, etc.). |
+
+---
+
+## 🟨 3. Class Definition
+
+```python
+class FaultInjector:
+```
+
+* This creates a **class** — a blueprint for creating **objects**. Here, `FaultInjector` is a tool to inject and manage faults.
+
+---
+
+## 🟨 4. Constructor Method
+
+```python
+def __init__(self, config_file: str = "../verification/config.json"):
+```
+
+* `__init__` is called automatically when a new object is created.
+* `config_file: str` means the input must be a **string** (the path to the config file).
+* `= "../verification/config.json"` is a **default value** if no argument is passed.
+
+```python
+with open(config_file, 'r') as f:
+    self.config = json.load(f)
+```
+
+* `open(...)`: Opens a file for reading (`'r'`).
+* `json.load(f)`: Parses JSON from the file into a **Python dictionary**.
+* `self.config`: Stores this config in the object.
+
+```python
+self.injected_faults = []
+```
+
+* Creates an **empty list** to track injected faults.
+* `List`: a collection type. For example: `[1, 2, 3]` or `["error", "warning"]`
+
+---
+
+## 🟨 5. List Available Faults
+
+```python
+def list_available_faults(self):
+```
+
+This method prints out the kinds of faults that can be injected.
+
+```python
+faults = [
+    ("latency_injection", "Inject latency into C1 customers service"),
+    ...
+]
+```
+
+* `faults` is a **list of tuples**. Each tuple has:
+
+  * a **fault ID** (like `"latency_injection"`)
+  * a **description**
+
+```python
+for i, (fault_id, description) in enumerate(faults, 1):
+    print(f"{i}. {fault_id}: {description}")
+```
+
+* `enumerate(..., 1)` gives you an index starting from 1.
+* Each fault is printed.
+
+Returns the list of faults.
+
+---
+
+## 🟨 6. Inject Fault
+
+```python
+def inject_fault(self, fault_type: str, duration: int = 300):
+```
+
+* This injects a fault into the system.
+* `fault_type`: string of which type of fault.
+* `duration`: how long the fault should last (default is 300 seconds = 5 minutes).
+
+```python
+fault_methods = {
+    "latency_injection": self._inject_latency_fault,
+    ...
+}
+```
+
+* A **dictionary** mapping fault type names to method calls.
+* Dictionaries are key-value pairs: `{"key": "value"}`
+
+Then it calls the correct function based on `fault_type`.
+
+---
+
+## 🟨 7. Individual Fault Injection Methods
+
+Each `_inject_xyz_fault()` method simulates a different fault:
+
+### Example:
+
+```python
+def _inject_latency_fault(self, duration: int) -> bool:
+```
+
+* This adds **latency** (delay) to a service.
+* The body just prints messages and simulates configuration updates.
+
+```python
+config_update = {
+    "chaos.monkey.assaults.latency.active": "true",
+    ...
+}
+```
+
+* A **dictionary** simulating config updates.
+
+```python
+self._schedule_fault_removal("latency_injection", duration)
+```
+
+* This schedules the removal of the fault after a given time.
+
+Other faults (like `_inject_memory_pressure`, `_inject_network_partition`) follow similar patterns.
+
+---
+
+## 🟨 8. Schedule Fault Removal
+
+```python
+def _schedule_fault_removal(self, fault_type: str, duration: int):
+```
+
+* Waits for `duration` seconds then removes the fault.
+
+```python
+def remove_fault():
+    time.sleep(duration)
+    self.remove_fault(fault_type)
+```
+
+Uses `threading` to run in the background:
+
+```python
+import threading
+thread = threading.Thread(target=remove_fault)
+thread.daemon = True
+thread.start()
+```
+
+---
+
+## 🟨 9. Remove Fault
+
+```python
+def remove_fault(self, fault_type: str) -> bool:
+```
+
+* Based on the fault type, simulates "undoing" the fault.
+
+```python
+for fault in self.injected_faults:
+    if fault["type"] == fault_type and fault["status"] == "active":
+        fault["status"] = "removed"
+        fault["end_time"] = time.time()
+```
+
+* Loops through the `injected_faults` list and marks the fault as removed.
+* This shows how to **loop through a list of dictionaries**.
+
+---
+
+## 🟨 10. List Active Faults
+
+```python
+def list_active_faults(self):
+```
+
+* Uses a list **comprehension**:
+
+```python
+active_faults = [f for f in self.injected_faults if f["status"] == "active"]
+```
+
+* This is a **filtered list** containing only active faults.
+
+---
+
+## 🟨 11. Remove All Faults
+
+```python
+def remove_all_faults(self):
+```
+
+* Finds all active faults and removes each by calling `remove_fault(...)`.
+
+---
+
+## 🟨 12. Generate Fault Report
+
+```python
+def generate_fault_report(self, output_file: str = "fault_report.json"):
+```
+
+Creates a JSON report:
+
+```python
+report = {
+    "timestamp": time.time(),
+    "total_faults": len(self.injected_faults),
+    "active_faults": len([...]),
+    "faults": self.injected_faults
+}
+```
+
+* `len(...)` gets the number of items in a list.
+
+Then saves this dictionary as a JSON file:
+
+```python
+with open(output_file, 'w') as f:
+    json.dump(report, f, indent=2)
+```
+
+---
+
+## 🟨 13. Main Function
+
+```python
+def main():
+```
+
+Handles **command-line arguments** using `argparse`.
+
+```python
+parser.add_argument("--inject", help="Inject a specific fault type")
+```
+
+* Each `add_argument()` defines a command-line flag.
+
+```python
+args = parser.parse_args()
+```
+
+* Reads all the flags passed to the script.
+
+Then it checks which option was used:
+
+```python
+if args.list:
+    injector.list_available_faults()
+elif args.inject:
+    ...
+```
+
+* Based on the flag, it calls the appropriate method.
+
+---
+
+## 🟨 14. Script Entry Point
+
+```python
+if __name__ == "__main__":
+    main()
+```
+
+This means: if this file is run as a script (not imported as a module), call the `main()` function.
+
+---
+
+# ✅ Summary of Python Concepts Used
+
+| Concept                    | Explanation                                                        |
+| -------------------------- | ------------------------------------------------------------------ |
+| **List** (`[]`)            | A collection of items. Example: `["a", "b", "c"]`                  |
+| **Dictionary** (`{}`)      | Key-value pairs. Example: `{"name": "John", "age": 30}`            |
+| **Tuple** (`()`)           | Immutable group of values. Used here like: `("id", "description")` |
+| **Class**                  | A blueprint for creating objects.                                  |
+| **Method**                 | A function inside a class.                                         |
+| **List Comprehension**     | A quick way to build lists: `[x for x in items if ...]`            |
+| **Exception Handling**     | Using `try`/`except` to catch errors.                              |
+| **Threads**                | Runs code in the background (`threading.Thread`).                  |
+| **Command-line arguments** | Handled by `argparse` to control the script from the terminal.     |
+
+---
+
+Would you like me to create a **diagram or flowchart**
