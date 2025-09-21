@@ -1,0 +1,247 @@
+This Terraform configuration defines network security architecture for two AWS environments (C1 in us-west-2 and C2 in us-east-1). It includes:
+
+WAFs (Web ACLs) to block malicious traffic
+
+Network ACLs (NACLs) to control subnet-level access
+
+VPC Endpoints and endpoint policies for private S3 access
+
+I'll break it section by section, with line-by-line annotations where necessary.
+
+✅ 1. Terraform AWS Provider Block
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
+
+Explanation:
+
+terraform: Starts the Terraform settings block.
+
+required_providers: Specifies which provider Terraform must use—in this case, AWS.
+
+source = "hashicorp/aws": Use the official AWS provider from HashiCorp.
+
+version = "~> 5.0": Use version 5.x (but not 6.x).
+
+🌐 2. WAF (Web Application Firewall) for ALB (Application Load Balancer)
+
+There are two aws_wafv2_web_acl resources:
+
+main for C1 in us-west-2
+
+c2 for C2 in us-east-1
+
+🔐 Web ACL for C1 (aws_wafv2_web_acl.main)
+resource "aws_wafv2_web_acl" "main" {
+  provider = aws.us-west-2
+
+
+Defines the Web ACL for the ALB in us-west-2 (C1).
+
+provider = aws.us-west-2: Explicitly tells Terraform to use the AWS provider configured for us-west-2.
+
+  name  = "${var.cluster_name}-waf"
+  scope = "REGIONAL"
+
+
+WAF name will include the cluster name.
+
+scope = "REGIONAL": It applies to regional resources (e.g., ALB).
+
+  default_action {
+    allow {}
+  }
+
+
+If none of the rules match, allow the request.
+
+🚫 Rule 1: GeoBlocking (Block certain countries)
+  rule {
+    name     = "GeoBlockingRule"
+    priority = 1
+
+
+priority: Determines the rule execution order (lower = higher priority).
+
+    statement {
+      geo_match_statement {
+        country_codes = ["CN", "RU", "KP"]
+      }
+    }
+
+
+Block traffic from China, Russia, North Korea.
+
+    action {
+      block {}
+    }
+
+
+Block matching requests.
+
+🚫 Rule 2: SQL Injection
+  rule {
+    name     = "SQLInjectionRule"
+    priority = 2
+
+
+This rule detects SQL injection attempts.
+
+    statement {
+      sqli_match_statement {
+        field_to_match {
+          body {}
+        }
+
+
+Analyze the body of requests for SQL patterns.
+
+        text_transformation {
+          priority = 0
+          type     = "URL_DECODE"
+        }
+
+
+Decode URL-encoded characters.
+
+        text_transformation {
+          priority = 1
+          type     = "HTML_ENTITY_DECODE"
+        }
+
+
+Decode HTML entities (&lt;, &gt;, etc.)
+
+🚫 Rule 3: Cross-site scripting (XSS)
+
+Same as SQL rule, but using xss_match_statement instead.
+
+🚫 Rule 4: Rate Limiting
+  rule {
+    name     = "RateLimitRule"
+    priority = 4
+
+    statement {
+      rate_based_statement {
+        limit              = 2000
+        aggregate_key_type = "IP"
+      }
+    }
+
+
+Blocks IPs sending more than 2000 requests in 5 minutes.
+
+🔎 WAF Logging and Tags
+  visibility_config {
+    cloudwatch_metrics_enabled = true
+    metric_name                = "${var.cluster_name}-waf"
+    sampled_requests_enabled   = true
+  }
+
+  tags = var.tags
+
+
+Enables monitoring in CloudWatch.
+
+Applies custom tags.
+
+🧭 WAF for C2 (aws_wafv2_web_acl.c2)
+
+Same as above, but for us-east-1. Names and provider region differ:
+
+  name  = "${var.cluster_name}-c2-waf"
+  provider = aws.us-east-1
+
+
+Rules are the same for consistency.
+
+🔒 Network ACLs for Subnets
+
+There are two aws_network_acl resources: one for each VPC.
+
+🔐 C1 Private NACL (aws_network_acl.c1_private)
+  provider = aws.us-west-2
+  vpc_id = var.vpc_c1_id
+
+
+Applies to VPC C1 in us-west-2.
+
+📥 Ingress Rules:
+
+Allow traffic from C2’s CIDR for ports: 8080, 443, 80
+
+Allow ephemeral port range (1024-65535) from any IP
+
+📤 Egress Rules:
+
+Allow all outbound to C2, Internet, and ephemeral ports
+
+🏷️ Tag
+  tags = merge(var.tags, {
+    Name = "${var.cluster_name}-c1-private-nacl"
+  })
+
+🔐 C2 Private NACL (aws_network_acl.c2_private)
+
+Same setup, but:
+
+Region: us-east-1
+
+VPC: var.vpc_c2_id
+
+Allows traffic from/to C1
+
+☁️ VPC Endpoints for S3
+
+Provides private access to S3 without going over the internet.
+
+🔄 VPC Endpoint C1
+resource "aws_vpc_endpoint" "s3_c1" {
+  provider     = aws.us-west-2
+  vpc_id       = var.vpc_c1_id
+  service_name = "com.amazonaws.${var.region_c1}.s3"
+
+
+Private connection to S3 service in C1 VPC.
+
+🔄 VPC Endpoint C2
+
+Same, for C2 in us-east-1.
+
+🔐 VPC Endpoint Policy (Least Privilege)
+
+Restrict what the endpoint can access on S3.
+
+🔒 C1 Endpoint Policy
+  policy = jsonencode({
+    ...
+    Action = [
+      "s3:GetObject",
+      "s3:PutObject"
+    ]
+
+
+Only allow GET and PUT on:
+
+arn:aws:s3:::${var.s3_bucket_name}/*
+
+And only when the request comes through the VPC endpoint.
+
+🔒 C2 Endpoint Policy
+
+Same structure, for the other endpoint.
+
+🧩 Summary of Resources
+Resource Type	Purpose
+aws_wafv2_web_acl	Web ACL for blocking bad traffic (Geo, SQLi, XSS, Rate)
+aws_network_acl	Subnet-level traffic control between C1 and C2
+aws_vpc_endpoint	Private access to S3
+aws_vpc_endpoint_policy	Restrict what the S3 endpoint can do
+
+If you'd like, I can draw a diagram or generate a security policy summary from this as well.
