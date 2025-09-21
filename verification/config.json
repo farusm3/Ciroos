@@ -1,0 +1,35 @@
+{
+  "c1": {
+    "region": "us-west-2",
+    "cluster_name": "petclinic-c1",
+    "endpoint": "customers-service.petclinic-c1.svc.cluster.local:8080",
+    "internal_endpoint": "customers-service.petclinic-c1.svc.cluster.local:8080",
+    "public_endpoint": "internal-alb-c1.us-west-2.elb.amazonaws.com",
+    "vpc_cidr": "10.0.0.0/16"
+  },
+  "c2": {
+    "region": "us-east-1", 
+    "cluster_name": "petclinic-c2",
+    "endpoint": "visits-service.petclinic-c2.svc.cluster.local:8080",
+    "internal_endpoint": "visits-service.petclinic-c2.svc.cluster.local:8080",
+    "public_endpoint": "internal-alb-c2.us-east-1.elb.amazonaws.com",
+    "vpc_cidr": "10.1.0.0/16"
+  },
+  "cross_cluster_communication": {
+    "allowed_ports": [8080, 443, 80],
+    "allowed_protocols": ["tcp"],
+    "source_cidr": "10.0.0.0/16",
+    "destination_cidr": "10.1.0.0/16"
+  },
+  "security_controls": {
+    "waf_enabled": true,
+    "rate_limiting_enabled": true,
+    "ssl_required": true,
+    "public_access_blocked": true
+  },
+  "monitoring": {
+    "prometheus_endpoint": "prometheus.monitoring.svc.cluster.local:9090",
+    "grafana_endpoint": "grafana.monitoring.svc.cluster.local:3000",
+    "alert_manager_endpoint": "alertmanager.monitoring.svc.cluster.local:9093"
+  }
+}

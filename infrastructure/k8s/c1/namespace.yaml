@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: petclinic-c1
+  labels:
+    name: petclinic-c1
+    cluster: c1

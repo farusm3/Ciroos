@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: visits-service-external
+  namespace: petclinic-c2
+  labels:
+    app: visits-service-external
+    cluster: c2
+spec:
+  type: ExternalName
+  externalName: visits-service.petclinic-c2.svc.cluster.local
+  ports:
+  - port: 8080
+    protocol: TCP
+---
+# Service for cross-cluster communication
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: visits-service-external
+  namespace: petclinic-c2
+subsets:
+- addresses:
+  - ip: "10.0.1.100"  # This will be the actual IP of the service in C1
+  ports:
+  - port: 8080
+    protocol: TCP

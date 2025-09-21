@@ -1,0 +1,115 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: visits-service
+  namespace: petclinic-c2
+  labels:
+    app: visits-service
+    cluster: c2
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: visits-service
+  template:
+    metadata:
+      labels:
+        app: visits-service
+        cluster: c2
+    spec:
+      containers:
+      - name: visits-service
+        image: springcommunity/spring-petclinic-visits-service:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          value: "kubernetes"
+        - name: SERVER_PORT
+          value: "8080"
+        - name: SPRING_DATASOURCE_URL
+          value: "jdbc:h2:mem:testdb"
+        - name: SPRING_DATASOURCE_DRIVER_CLASS_NAME
+          value: "org.h2.Driver"
+        - name: SPRING_DATASOURCE_USERNAME
+          value: "sa"
+        - name: SPRING_DATASOURCE_PASSWORD
+          value: ""
+        - name: SPRING_JPA_HIBERNATE_DDL_AUTO
+          value: "create-drop"
+        - name: CUSTOMERS_SERVICE_URL
+          value: "http://customers-service.petclinic-c1.svc.cluster.local:8080"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8080
+          initialDelaySeconds: 60
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: visits-service
+  namespace: petclinic-c2
+  labels:
+    app: visits-service
+    cluster: c2
+spec:
+  selector:
+    app: visits-service
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: visits-service-netpol
+  namespace: petclinic-c2
+spec:
+  podSelector:
+    matchLabels:
+      app: visits-service
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: petclinic-c2
+    - namespaceSelector:
+        matchLabels:
+          name: petclinic-c1  # Allow cross-cluster communication
+    ports:
+    - protocol: TCP
+      port: 8080
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: petclinic-c1  # Allow communication to C1 customers service
+    ports:
+    - protocol: TCP
+      port: 8080
+  - to: []  # Allow other necessary egress
+    ports:
+    - protocol: TCP
+      port: 53
+    - protocol: UDP
+      port: 53
