@@ -1,6 +1,5 @@
 This JSON is a Grafana dashboard configuration designed for PetClinic Cross-Cluster Monitoring. It defines a visual dashboard with 6 panels, each showing metrics relevant to microservices deployed across clusters (C1 and C2). The data is typically sourced from Prometheus, using PromQL queries.
 
-Let's go line-by-line and section-by-section to understand what's going on.
 
 🧭 Root Level
 {
